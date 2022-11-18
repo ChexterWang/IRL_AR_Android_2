@@ -1,4 +1,4 @@
-<android.support.constraint.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
@@ -19,9 +19,7 @@
         android:name="com.google.ar.sceneform.samples.promar.MyArFragment"
         android:layout_width="1920px"
         android:layout_height="1080px" />
-    <!--
-android:layout_height="match_parent"
--->
+
     <com.google.ar.sceneform.samples.promar.OverlayView
         android:id="@+id/tracking_overlay"
         android:layout_width="match_parent"
@@ -36,7 +34,7 @@ android:layout_height="match_parent"
 
   </FrameLayout>
 
-  <android.support.v7.widget.AppCompatImageView
+  <androidx.appcompat.widget.AppCompatImageView
       android:id="@+id/imgview"
       android:layout_width="wrap_content"
       android:layout_height="wrap_content"
@@ -68,42 +66,6 @@ android:layout_height="match_parent"
       app:layout_constraintVertical_bias="0.965"
       tools:text="Retrieve" />
 
-  <RadioGroup
-      android:layout_width="wrap_content"
-      android:layout_height="wrap_content"
-      app:layout_constraintBottom_toBottomOf="parent"
-      app:layout_constraintEnd_toEndOf="parent"
-      app:layout_constraintHorizontal_bias="0.5"
-      app:layout_constraintStart_toStartOf="parent"
-      app:layout_constraintTop_toTopOf="parent"
-      app:layout_constraintVertical_bias="0.965"
-      android:id="@+id/rg_role">
-
-    <RadioButton
-        android:id="@+id/rb_owner"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Host" />
-
-    <RadioButton
-        android:id="@+id/rb_viewer"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Viewer" />
-  </RadioGroup>
-
-  <SeekBar
-      android:id="@+id/seekBar"
-      android:layout_width="200dp"
-      android:layout_height="wrap_content"
-      android:rotation="270"
-      app:layout_constraintBottom_toBottomOf="parent"
-      app:layout_constraintEnd_toEndOf="parent"
-      app:layout_constraintTop_toTopOf="parent"
-      />
-
-
-
   <TextView
       android:id="@+id/cangle"
       android:layout_width="wrap_content"
@@ -129,23 +91,5 @@ android:layout_height="match_parent"
       app:layout_constraintEnd_toEndOf="parent"
       app:layout_constraintStart_toStartOf="parent"
       android:visibility="gone"/>
-  <!--
-   <LinearLayout
-       android:layout_width="match_parent"
-       android:layout_height="wrap_content"
-       android:layout_weight="1">
-      <android.support.v7.widget.AppCompatImageView
-         android:id="@+id/imgview"
-         android:layout_width="match_parent"
-         android:layout_height="wrap_content"
-         android:layout_weight="1" />
-      <Button
-         android:id="@+id/button"
-         android:layout_width="match_parent"
-         android:layout_height="wrap_content"
-         android:layout_weight="1"
-         android:onClick="takePhoto"
-         android:text="Take" />
-    </LinearLayout>
-    -->
-</android.support.constraint.ConstraintLayout>
+
+</androidx.constraintlayout.widget.ConstraintLayout>

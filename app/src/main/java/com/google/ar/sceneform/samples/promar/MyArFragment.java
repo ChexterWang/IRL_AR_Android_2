@@ -86,7 +86,6 @@ public class MyArFragment extends ArFragment {
 
     }
 
-    @Override
     protected Config getSessionConfiguration(Session session) {
         Config newConfig = session.getConfig();
         newConfig.setPlaneFindingMode(Config.PlaneFindingMode.HORIZONTAL);

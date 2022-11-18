@@ -17,12 +17,10 @@ package com.google.ar.sceneform.samples.promar;
 
 import android.app.Activity;
 import android.app.ActivityManager;
-import android.app.FragmentManager;
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Matrix;
-import android.graphics.RectF;
 import android.graphics.Color;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
@@ -39,26 +37,21 @@ import android.os.Build.VERSION_CODES;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.support.annotation.RequiresApi;
-import android.support.v7.app.AppCompatActivity;
+import androidx.annotation.RequiresApi;
+import androidx.appcompat.app.AppCompatActivity;
 import android.util.Base64;
 import android.util.Log;
 import android.util.SizeF;
-import android.view.Display;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.Surface;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
-import android.widget.RadioButton;
-import android.widget.RadioGroup;
-import android.widget.SeekBar;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.ar.core.Trackable;
-import com.google.ar.core.Config;
 import com.google.ar.core.Frame;
 import com.google.ar.core.Anchor;
 import com.google.ar.core.Camera;
@@ -66,7 +59,6 @@ import com.google.ar.core.HitResult;
 import com.google.ar.core.Plane;
 import com.google.ar.core.Pose;
 import com.google.ar.core.Session;
-import com.google.ar.core.TrackingState;
 import com.google.ar.sceneform.AnchorNode;
 import com.google.ar.sceneform.math.Vector3;
 import com.google.ar.sceneform.math.Quaternion;
@@ -84,31 +76,20 @@ import org.opencv.android.BaseLoaderCallback;
 import org.opencv.android.LoaderCallbackInterface;
 import org.opencv.android.OpenCVLoader;
 import org.opencv.android.Utils;
-import org.opencv.core.DMatch;
-import org.opencv.core.KeyPoint;
 import org.opencv.core.Mat;
-import org.opencv.core.MatOfDMatch;
-import org.opencv.core.MatOfKeyPoint;
-import org.opencv.core.Rect;
 
 import java.io.ByteArrayOutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.Collection;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.lang.ref.WeakReference;
 import org.java_websocket.client.WebSocketClient;
 
-import com.example.promar.imageprocessinglib.ImageProcessor;
 import com.example.promar.imageprocessinglib.ObjectDetector;
-import com.example.promar.imageprocessinglib.feature.FeatureStorage;
 import com.example.promar.imageprocessinglib.model.BoxPosition;
-import com.example.promar.imageprocessinglib.model.DescriptorType;
 import com.example.promar.imageprocessinglib.model.ImageFeature;
 import com.example.promar.imageprocessinglib.model.Recognition;
 
@@ -116,13 +97,12 @@ import com.example.promar.imageprocessinglib.model.Recognition;
 /**
  * This is an example activity that uses the Sceneform UX package to make common AR tasks easier.
  */
-public class PromarMainActivity extends AppCompatActivity implements SensorEventListener, SavingFeatureDialog.OnFragmentInteractionListener {
+public class PromarMainActivity extends AppCompatActivity implements
+        SensorEventListener,
+        SavingFeatureDialog.OnFragmentInteractionListener {
     private  static final String TAG = "MAIN_DEBUG";
     private static final int OWNER_STATE=1, VIEWER_STATE=2;
     private static final double MIN_OPENGL_VERSION = 3.1;
-
-    //fixed file name for storing metadata of image features and recognitions
-    private static final String dataFileName = "data_file";
 
     private int state=OWNER_STATE;
 
@@ -130,7 +110,9 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
 
     private float v_viewangle=60, h_viewangle=48;
 
-    private float VO_dist=0, VO_dist_for_viewer=0, v_dist=0;
+    private float VO_dist=0;
+    private final float VO_dist_for_viewer=0;
+    private float v_dist=0;
 
     //image recognition object as key, value is a list of image features list recognized as this object by TF.
     //Each element is a distortion robust image feature, sorted as left, right, top and bottom
@@ -143,7 +125,7 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
 
     private Session arSession;
 
-    private float last_chk_time=0;
+    private final float last_chk_time=0;
     private boolean opencvLoaded=false;
     //    private Classifier classifier;
     private ObjectDetector objectDetector;
@@ -152,14 +134,14 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
     /*** from tensorflow sample code***/
     private Handler handler;
     private long timestamp = 0; //it's actually a counter
-    private Bitmap cropCopyBitmap = null;
+    private final Bitmap cropCopyBitmap = null;
     private Bitmap croppedBitmap = null;
-    private Bitmap rgbFrameBitmap=null;
+    private final Bitmap rgbFrameBitmap=null;
     private Bitmap copyBitmp = null;
 
     private HandlerThread handlerThread;
-    private byte[][] yuvBytes = new byte[3][];
-    private int[] rgbBytes = null;
+    private final byte[][] yuvBytes = new byte[3][];
+    private final int[] rgbBytes = null;
     private int yRowStride;
 
     protected int previewWidth = 0;
@@ -170,7 +152,7 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
     private Matrix frameToCropTransform;
     private Matrix cropToFrameTransform;
     private Matrix frameToDisplayTransform;
-    private int rotation=90;
+    private final int rotation=90;
 
     private MultiBoxTracker tracker;
 
@@ -191,16 +173,16 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
     private float view_x, view_y, view_z;
     private boolean need_relocalize = false;
     private boolean planeVisible = false;
-    private float andyScale = 0.3f;
+    private final float andyScale = 0.3f;
 
     // private String KalibInString = "737.037,699.167,340.565,218.486";
-    private static String KalibInString = MyUtils.deviceToKalib();
+    private static final String KalibInString = MyUtils.deviceToKalib();
 
-    private PointerDrawable pointer = new PointerDrawable();
+    private final PointerDrawable pointer = new PointerDrawable();
 
     public void toastShow(Context con, String str){
         Toast toast = Toast.makeText(con, str, Toast.LENGTH_SHORT);
-        TextView v = (TextView) toast.getView().findViewById(android.R.id.message);
+        TextView v = toast.getView().findViewById(android.R.id.message);
         v.setTextColor(Color.BLACK);
         toast.show();
     }
@@ -212,9 +194,7 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        if (!checkIsSupportedDeviceOrFinish(this)) {
-            return;
-        }
+        if (!checkIsSupportedDeviceOrFinish(this)) return;
         OpenCVLoader.initDebug();
 
         //calculate filed of views
@@ -223,8 +203,7 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
         setContentView(R.layout.activity_ux);
         arFragment = (MyArFragment) getSupportFragmentManager().findFragmentById(R.id.ux_fragment);
         arFragment.getArSceneView().getPlaneRenderer().setVisible(false);
-        arFragment.getPlaneDiscoveryController().hide();
-        arFragment.getPlaneDiscoveryController().setInstructionView(null);
+        arFragment.getInstructionsController().setEnabled(false);
         imgView = findViewById(R.id.imgview);
 
         //orientation sensor manager
@@ -233,13 +212,7 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
                 Sensor.TYPE_ROTATION_VECTOR);
         mSensorManager.registerListener(this, mRotationVectorSensor, 10000);
 
-        Display display = this.getWindowManager().getDefaultDisplay();
-        int stageWidth = display.getWidth();
-        int stageHeight = display.getHeight();
         conn();
-        //ImageView imgview=findViewById(R.id.imgview);
-
-        //imgview.setImageResource(R.drawable.ic_launcher);
 
         arFragment.setActivity(this);
         arFragment.setOnFrameListener((frameTime, frame) -> {
@@ -247,10 +220,13 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
             Bitmap bitmap=null;//Bitmap.createBitmap(previewWidth, previewHeight, Bitmap.Config.ARGB_8888);
             Image img=null;
             //if(curTime-last_chk_time<2) return;
-            if(frame==null) {Log.d(TAG,"frame is null"); return;}
+            if(frame==null){
+                Log.d(TAG,"frame is null");
+                return;
+            }
             try {
                 img = frame.acquireCameraImage(); //catch the image from camera
-                String msg = img.getFormat()+":"+Integer.toString(img.getWidth())+","+Integer.toString(img.getHeight());
+                String msg = img.getFormat()+":"+ img.getWidth() +","+ img.getHeight();
                 // Log.d("img format", msg);
                 //setImage(img);
                 luminanceCopy = MyUtils.imageToByte(img); //convert image to byte[]
@@ -262,98 +238,65 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
             catch(Exception e){
                 return;
             }
-
             if(objectDetector==null) {
                 initTF(bitmap);
                 initDistParameters();
             }
-
-            if(!planeVisible){
-                Collection plane = frame.getUpdatedTrackables(Plane.class);
-                if(plane.isEmpty() == false){
-                    toastShow(PromarMainActivity.this, "plane found");
-                    planeVisible = true;
-                }
-            }
-
+            if(!planeVisible) planeVisible = checkPlaneVisibility(frame);
             processImage(bitmap);
         });
 
-
-
-        // When you build a Renderable, Sceneform loads its resources in the background while returning
-        // a CompletableFuture. Call thenAccept(), handle(), or check isDone() before calling get().
-        ModelRenderable.builder()
-                .setSource(this, R.raw.andy)
-                .build()
-                .thenAccept(renderable -> andyRenderable = renderable)
-                .exceptionally(
-                        throwable -> {
-                            Toast toast =
-                                    Toast.makeText(this, "Unable to load andy renderable", Toast.LENGTH_LONG);
-                            toast.setGravity(Gravity.CENTER, 0, 0);
-                            toast.show();
-                            return null;
-                        });
-
         arFragment.setOnTapArPlaneListener(
-                (HitResult hitResult, Plane plane, MotionEvent motionEvent) ->
-                {
-                    return;
-/*              {
-                    if (andyRenderable == null) {
-                        return;
-                    }
-                    if(andy != null) {
-                        return;
-                    }
+            (HitResult hitResult, Plane plane, MotionEvent motionEvent) -> { return; }
+        );
 
-                    float x = motionEvent.getRawX();
-                    float y = motionEvent.getRawY();
-                    float x1 = motionEvent.getX();
-                    float y1 = motionEvent.getY();
-                    float x2 = motionEvent.getXPrecision();
-                    float y2 = motionEvent.getYPrecision();
+        loadModel();
+        setPlaceBtn();
+        setRetrieveBtn();
 
-                    // Create the Anchor.
-                    Anchor anchor = hitResult.createAnchor();
-                    AnchorNode anchorNode = new AnchorNode(anchor);
-                    anchorNode.setParent(arFragment.getArSceneView().getScene());
-                    float[] xs = anchor.getPose().getXAxis();
-                    float[] ys = anchor.getPose().getYAxis();
-                    float[] zs = anchor.getPose().getZAxis();
-                    Vector3 localPosition = anchorNode.getLocalPosition();
-                    Vector3 worldPosition = anchorNode.getWorldPosition();
+    }
 
-                    // Create the transformable andy and add it to the anchor.
-                    TransformableNode andy = new TransformableNode(arFragment.getTransformationSystem());
-                    andy.setParent(anchorNode);
-                    andy.setRenderable(andyRenderable);
-                    andy.select();
-*/
-                });
-        Button recBtn = findViewById(R.id.record);  //record button
-        Button rteBtn = findViewById(R.id.retrieve);    //retrieve button
-        recBtn.setTag("Place VO");
-        recBtn.setOnClickListener(new View.OnClickListener(){
-            public void onClick(View view) {
-                SeekBar sbar=findViewById(R.id.seekBar);
-                Button btn=(Button) view;
+    private boolean checkPlaneVisibility(Frame frame) {
+        Collection plane = frame.getUpdatedTrackables(Plane.class);
+        if(!plane.isEmpty()){
+            toastShow(PromarMainActivity.this, "plane found");
+            return true;
+        }
+        return false;
+    }
+
+    private void loadModel() {
+        WeakReference<PromarMainActivity> weakActivity = new WeakReference<>(this);
+        ModelRenderable.builder()
+        .setSource(this, Uri.parse("https://github.com/ChexterWang/IRL_AR_Android_2/blob/master/app/sampledata/models/andy.glb?raw=true"))
+        .setIsFilamentGltf(true)
+        .setAsyncLoadEnabled(true)
+        .build()
+        .thenAccept(model -> {
+            PromarMainActivity activity = weakActivity.get();
+            if(activity != null) activity.andyRenderable = model;
+        })
+        .exceptionally(throwable -> {
+                Toast toast = Toast.makeText(this, "Unable to load andy renderable", Toast.LENGTH_LONG);
+                toast.setGravity(Gravity.CENTER, 0, 0);
+                toast.show();
+                return null;
+            }
+        );
+    }
+
+    private void setPlaceBtn() {
+        Button recBtn = findViewById(R.id.record);
+        recBtn.setOnClickListener(view -> {
+                Button btn=(Button)view;
                 String tag=(String)btn.getTag();
                 if(tag.equals("Place VO")) {
-
-                    placeAndy(previewWidth/2, previewHeight/2);
+                    placeAndy((float)previewWidth/2, (float)previewHeight/2);
                     runOnUiThread(()-> {
                         btn.setText("Confirm");
                         btn.setTag("Confirm");
-
-                        // sbar.setProgress(50);
-                        // sbar.setVisibility(View.VISIBLE);
-
                     });
-
-                }
-                else{
+                } else {
                     rs=null;//delete previous data
                     onRecord = true;
                     runOnUiThread(()-> {
@@ -361,21 +304,19 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
                         btn.setText("Place VO");
                         send_vo = true;
                         toastShow(PromarMainActivity.this, "set host");
-                        sbar.setVisibility(View.INVISIBLE);
                     });
-
-
                 }
             }
-        });
-        rteBtn.setTag("Retrieve");
-        // rteBtn.setTag("Clear");
-        // onRetrieve = true;
+        );
+        recBtn.setTag("Place VO");
+    }
+
+    private void setRetrieveBtn() {
+        Button rteBtn = findViewById(R.id.retrieve);
         viewer_vo = true;
-        rteBtn.setOnClickListener(new View.OnClickListener(){
-            public void onClick(View view) {
-                AsyncTask.execute(()->{
-                    Button btn=(Button) view;
+        rteBtn.setOnClickListener(view -> {
+                AsyncTask.execute(() -> {
+                    Button btn=(Button)view;
                     String tag=(String)btn.getTag();
                     if(tag.equals("Retrieve")) {
                         get_viewer_position = false;
@@ -387,82 +328,21 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
                             btn.setTag("Clear");
                             //btn.setEnabled(false);
                         });
-                    }
-                    else{
+                    } else {
                         onRetrieve=false;
-
                         runOnUiThread(()-> {
-
                             btn.setTag("Retrieve");
                             btn.setText("Retrieve");
                             if(andy != null) {
                                 andy.setParent(null);
                             }
                         });
-
                     }
-
                 });
             }
-        });
-
-
-        RadioButton rb=findViewById(R.id.rb_owner);
-        rb.setChecked(true);
-        rteBtn.setEnabled(true);
-
-        RadioGroup radioGroup=findViewById(R.id.rg_role);
-        radioGroup.setVisibility(View.INVISIBLE);
-        radioGroup.setOnCheckedChangeListener(new RadioGroup.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(RadioGroup group, int checkedId) {
-                RadioButton rb = (RadioButton) group.findViewById(checkedId);
-                String msg= "Switch to "+ rb.getText();
-                if (null != rb ) {
-                    toastShow(PromarMainActivity.this, msg);
-                }
-                if(rb.getId()==R.id.rb_owner){
-                    recBtn.setEnabled(true);
-                    rteBtn.setEnabled(false);
-                    state=OWNER_STATE;
-                    onRetrieve=false;
-                }else{
-                    recBtn.setEnabled(false);
-                    rteBtn.setEnabled(true);
-                    state=VIEWER_STATE;
-                    if(andy != null){
-                        andy.setParent(null);
-                    }
-                }
-            }
-        });
-
-        SeekBar sbar=findViewById(R.id.seekBar);
-        sbar.setMax(100);
-        sbar.setMin(0);
-        sbar.setVisibility(View.INVISIBLE);
-
-        sbar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-                                            @Override
-                                            public void onProgressChanged(SeekBar seekBar, int i, boolean b) {
-                                                float dist=(float)((i-50)*0.02+1);
-                                                VO_dist=dist;
-                                                // placeAndyWithDist(dist);
-                                            }
-
-                                            @Override
-                                            public void onStartTrackingTouch(SeekBar seekBar) {
-
-                                            }
-
-                                            @Override
-                                            public void onStopTrackingTouch(SeekBar seekBar) {
-
-                                            }
-                                        }
-
-
         );
+        rteBtn.setTag("Retrieve");
+        rteBtn.setEnabled(true);
     }
 
     //FOV (rectilinear) =  2 * arctan (frame size/(focal length * 2))
@@ -484,9 +364,7 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
                     v_viewangle = (float) (2 * Math.atan(h / (maxFocus[0] * 2)))/(float)(2*Math.PI)*360;
                 }
             }
-        }
-        catch (CameraAccessException e)
-        {
+        } catch (CameraAccessException e){
             Log.e(TAG, e.getMessage(), e);
         }
     }
@@ -497,7 +375,7 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
         float v_dist_center_x=(float) (width/2/Math.tan(h_viewangle/2/180*Math.PI)); //virtual distance to the center of the cameraview
         float v_dist_center_y=(float) (height/2/Math.tan(v_viewangle/2/180*Math.PI)); //virtual distance to the center of the cameraview
         Log.d("match_strings",String.format("width:%.02f,height:%.02f",width, height));
-        Log.d("match_strings","dist_center:"+Float.toString(v_dist_center_x)+" "+Float.toString(v_dist_center_y));
+        Log.d("match_strings","dist_center:"+ v_dist_center_x +" "+ v_dist_center_y);
         //TODO:how about adding v_dist_center_y? Why their value varied so much
         v_dist=v_dist_center_x;//(v_dist_center_x+v_dist_center_y)/2; //distance in units of pixels
     }
@@ -512,7 +390,6 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
         //if(tracker==null)
         tracker = new MultiBoxTracker(this);
 
-
         croppedBitmap = Bitmap.createBitmap(300, 300, Bitmap.Config.ARGB_8888);
         copyBitmp = Bitmap.createBitmap(previewWidth, previewHeight, Bitmap.Config.ARGB_8888);
         frameToCropTransform =
@@ -522,7 +399,7 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
                         sensorOrientation, false);
         cropToFrameTransform = new Matrix();
         frameToCropTransform.invert(cropToFrameTransform);
-        trackingOverlay = (OverlayView) findViewById(R.id.tracking_overlay);
+        trackingOverlay = findViewById(R.id.tracking_overlay);
         trackingOverlay.addCallback(
                 new OverlayView.DrawCallback() {
                     @Override
@@ -553,79 +430,66 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
             @Override
             public void onMessage(String s) {
                 final String message = s;
-                new Thread(new Runnable() {
-                    @Override
-                    public void run() {
-                        String[] entries = message.split(":");
-                        String data = entries[3].substring(0, entries[3].length() - 6);
-                        String topic = entries[3].substring(2, 4);
-                        System.out.println("topic" + topic);
-                        System.out.println("msg" + message);
-                        data = data.substring(data.indexOf('"')+1, data.length() - 2);
+                new Thread(() -> {
+                    String[] entries = message.split(":");
+                    String data = entries[3].substring(0, entries[3].length() - 6);
+                    String topic = entries[3].substring(2, 4);
+                    System.out.println("topic" + topic);
+                    System.out.println("msg" + message);
+                    data = data.substring(data.indexOf('"')+1, data.length() - 2);
 
-                        List<String> poselist = Arrays.asList(data.split(","));
-                        if(poselist.get(0).equals("host_set")){
-                            runOnUiThread(()->{
-                                toastShow(getApplicationContext(), "server set done");
-                            });
-                        } else if(poselist.get(0).equals("viewer_done")){
-                            int rcv_id = Integer.valueOf(poselist.get(4));
-                            if(rcv_id == device_no){
-                                view_x = Float.parseFloat(poselist.get(1));
-                                view_y = Float.parseFloat(poselist.get(2));
-                                view_z = Float.parseFloat(poselist.get(3));
-                                runOnUiThread(() -> {
-                                    toastShow(getApplicationContext(), "rcv angle: "+view_z);
-                                });
-                                get_viewer_position = true;
-                            }
-/*
-                            System.out.println("msg data" + data);
-                            System.out.println("msg x" + view_x);
-                            System.out.println("msg y" + view_y);
-                            System.out.println("msg z" + view_z);
-                            if(view_z>0.85 && view_z <=1.2f){
-                                view_z = 1.2f;
-                            }else if(view_z>1.2f && view_z<=1.3f){
-                                view_z = 1.4f;
-                            }else if(view_z>1.3f && view_z<=1.4f){
-                                view_z = 1.5f;
-                            }else if(view_z > 1.4f){
-                                view_z = 1.6f;
-                            }
-                            view_z = view_z / 1.2f;
-                            if(view_z > 1.4f){
-                                view_z = 1.4f;
-                            }
-                            System.out.println("msg x final" + view_x);
-                            System.out.println("msg y final" + view_y);
-                            System.out.println("msg z final" + view_z);
-*/
-                        } else if(poselist.get(0).equals("initialize")) {
-                            has_initialized = true;
-                            runOnUiThread(()->{
-                                toastShow(getApplicationContext(), "SLAM initialize");
-                            });
-
-                        } else if(poselist.get(0).equals("relocalize")) {
-                            // need_relocalize = true;
-                            // no host(viewer -> pre host)
-                            onRetrieve = false;
-                            viewer_vo = false;
-                            // device_no = Integer.valueOf(poselist.get(1));
-                            runOnUiThread(() -> {
-                                // Toast.makeText(getApplicationContext(), "relocalize", Toast.LENGTH_SHORT).show();
-                                toastShow(getApplicationContext(), "server not set yet");
-                            });
-                        } else if(poselist.get(0).equals("id")) {
-                            if(device_no < 1){
-                                device_no = Integer.valueOf(poselist.get(1));
-                                runOnUiThread(() -> {
-                                    toastShow(getApplicationContext(), "device id: "+poselist.get(1));
-                                });
-                            }
+                    List<String> poselist = Arrays.asList(data.split(","));
+                    if(poselist.get(0).equals("host_set"))
+                        runOnUiThread(()-> toastShow(getApplicationContext(), "server set done"));
+                    else if(poselist.get(0).equals("viewer_done")){
+                        int rcv_id = Integer.parseInt(poselist.get(4));
+                        if(rcv_id == device_no){
+                            view_x = Float.parseFloat(poselist.get(1));
+                            view_y = Float.parseFloat(poselist.get(2));
+                            view_z = Float.parseFloat(poselist.get(3));
+                            runOnUiThread(() -> toastShow(getApplicationContext(), "rcv angle: "+view_z));
+                            get_viewer_position = true;
                         }
-
+/*
+                        System.out.println("msg data" + data);
+                        System.out.println("msg x" + view_x);
+                        System.out.println("msg y" + view_y);
+                        System.out.println("msg z" + view_z);
+                        if(view_z>0.85 && view_z <=1.2f){
+                            view_z = 1.2f;
+                        }else if(view_z>1.2f && view_z<=1.3f){
+                            view_z = 1.4f;
+                        }else if(view_z>1.3f && view_z<=1.4f){
+                            view_z = 1.5f;
+                        }else if(view_z > 1.4f){
+                            view_z = 1.6f;
+                        }
+                        view_z = view_z / 1.2f;
+                        if(view_z > 1.4f){
+                            view_z = 1.4f;
+                        }
+                        System.out.println("msg x final" + view_x);
+                        System.out.println("msg y final" + view_y);
+                        System.out.println("msg z final" + view_z);
+*/
+                    } else if(poselist.get(0).equals("initialize")) {
+                        has_initialized = true;
+                        runOnUiThread(() -> toastShow(getApplicationContext(), "SLAM initialize"));
+                    } else if(poselist.get(0).equals("relocalize")) {
+                        // need_relocalize = true;
+                        // no host(viewer -> pre host)
+                        onRetrieve = false;
+                        viewer_vo = false;
+                        // device_no = Integer.valueOf(poselist.get(1));
+                        runOnUiThread(() -> {
+                            // Toast.makeText(getApplicationContext(), "relocalize", Toast.LENGTH_SHORT).show();
+                            toastShow(getApplicationContext(), "server not set yet");
+                        });
+                    } else if(poselist.get(0).equals("id")) {
+                        if(device_no < 1){
+                            device_no = Integer.parseInt(poselist.get(1));
+                            runOnUiThread(() -> toastShow(getApplicationContext(), "device id: "+poselist.get(1)));
+                        }
                     }
                 }).start();
             }
@@ -672,9 +536,7 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
                 } else if(viewer_vo && device_no > 0) {
                     data_header = device_no.toString() + '_' + frame_no.toString() + "_viewer_" + encoded_img + "_";
                     viewer_vo = false;
-                } else {
-                    data_header = device_no.toString() + '_' + frame_no.toString() + "_F_" + encoded_img + "_";
-                }
+                } else data_header = device_no.toString() + '_' + frame_no.toString() + "_F_" + encoded_img + "_";
 
                 try {
                     obj1.put("data", data_header);
@@ -739,7 +601,7 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
     }
 
     long timeStamp = 0;
-    static private long kInterval = 500;
+    static private final long kInterval = 500;
 
     public Bitmap changeSize(Bitmap bitmap){
         int width = bitmap.getWidth();
@@ -795,15 +657,9 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
         final Canvas c = new Canvas(copyBitmp);
         c.drawBitmap(bitmap, new Matrix(), null);
 
-        runInBackground(
-                new Runnable() {
-                    @Override
-                    public void run() {
-                            if (onRetrieve) {
-                                retrieve(copyBitmp);
-                            }
-                    }
-                });
+        runInBackground(() -> {
+            if(onRetrieve) retrieve(copyBitmp);
+        });
         bitmap.recycle();
     }
 
@@ -842,10 +698,7 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
         return dx;
     }
 
-    public void onPeekTouch (){
-
-        return;
-    }
+    public void onPeekTouch() {}
 
     void placeAndy(float x, float y){
         View contentView = findViewById(android.R.id.content);
@@ -886,8 +739,8 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
     }
 
     void placeAndy(float x, float y, float z){
-        Camera camera=arFragment.getArSceneView().getArFrame().getCamera();
-        Pose mCameraRelativePose= Pose.makeTranslation(x, y, z);
+        Camera camera = arFragment.getArSceneView().getArFrame().getCamera();
+        Pose mCameraRelativePose = Pose.makeTranslation(x, y, z);
         arSession = arFragment.getArSceneView().getSession();
 
         Pose cPose = camera.getPose().compose(mCameraRelativePose).extractTranslation();
@@ -933,12 +786,7 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
 
     //miniature image view set image
     void setImage(Bitmap image){
-        runOnUiThread(new Runnable() {
-            @Override
-            public void run() {
-                imgView.setImageBitmap(image);
-            }
-        });
+        runOnUiThread(() -> imgView.setImageBitmap(image));
     }
 
     void setImage(Image image){
@@ -961,7 +809,7 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
 
 
 
-    private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
+    private final BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
         @Override
         public void onManagerConnected(int status) {
             opencvLoaded=false;
@@ -997,10 +845,8 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
 
 
     public void addCallback(final OverlayView.DrawCallback callback) {
-        final OverlayView overlay = (OverlayView) findViewById(R.id.debug_overlay);
-        if (overlay != null) {
-            overlay.addCallback(callback);
-        }
+        final OverlayView overlay = findViewById(R.id.debug_overlay);
+        if(overlay != null) overlay.addCallback(callback);
     }
 
     @Override
@@ -1020,9 +866,7 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
     }
 
     protected synchronized void runInBackground(final Runnable r) {
-        if (handler != null) {
-            handler.post(r);
-        }
+        if(handler != null) handler.post(r);
     }
 
     protected int getScreenOrientation() {
@@ -1040,10 +884,8 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
 
 
     public void requestRender() {
-        final OverlayView overlay = (OverlayView) findViewById(R.id.debug_overlay);
-        if (overlay != null) {
-            overlay.postInvalidate();
-        }
+        final OverlayView overlay = findViewById(R.id.debug_overlay);
+        if(overlay != null) overlay.postInvalidate();
     }
 
 
@@ -1054,8 +896,8 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
     private Sensor mRotationVectorSensor;
     private boolean checkAngle=false, firstValue=false;
 
-    public void onAccuracyChanged(Sensor sensor, int accuracy) {
-    }
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {}
+
     public void onSensorChanged(SensorEvent event) {
         if (firstValue) {
             refRD =new RotationData(event.values);
@@ -1068,8 +910,7 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
 
     void displayData(RotationData temp){
         TextView textView=findViewById(R.id.cangle);
-        if (refRD != null)
-            textView.setText(refRD.toString()+", "+temp.toString());
+        if(refRD != null) textView.setText(refRD +", "+temp.toString());
     }
 
     void setAngle(){
@@ -1079,12 +920,13 @@ public class PromarMainActivity extends AppCompatActivity implements SensorEvent
     }
 
     @Override
-    public void onFragmentInteraction(Uri uri) {
-
-    }
+    public void onFragmentInteraction(Uri uri) {}
 
     private class RotationData{
-        private float x,y,z,cos;
+        private final float x;
+        private final float y;
+        private final float z;
+        private float cos;
         private static final int FROM_RADS_TO_DEGS = -57;
 
         RotationData(float x, float y, float z){
