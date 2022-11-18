@@ -26,7 +26,6 @@ public class MyArFragment extends ArFragment {
         arSession.configure(config);
     }
 
-
     void setResolution(){
         Session arSession = getArSceneView().getSession();
         List<CameraConfig> ccl = arSession.getSupportedCameraConfigs();
@@ -69,26 +68,21 @@ public class MyArFragment extends ArFragment {
     @Override
     public void onUpdate(FrameTime frameTime){
         /*** add a listener ***/
-
         if(!configured){
             setAutoFocus();
             setResolution();
             configured=true;
         }
-
         super.onUpdate(frameTime);
-
         Frame arFrame = getArSceneView().getArFrame();
-        if (listener != null) {
-            listener.onFrame(frameTime, arFrame);
-        }
-
-
+        if (listener != null) listener.onFrame(frameTime, arFrame);
     }
 
     protected Config getSessionConfiguration(Session session) {
         Config newConfig = session.getConfig();
         newConfig.setPlaneFindingMode(Config.PlaneFindingMode.HORIZONTAL);
+        if(session.isDepthModeSupported(Config.DepthMode.AUTOMATIC))
+            newConfig.setDepthMode(Config.DepthMode.AUTOMATIC);
         return newConfig;
     }
 }

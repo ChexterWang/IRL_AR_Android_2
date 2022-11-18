@@ -14,9 +14,13 @@
    limitations under the License.
 -->
 <resources>
-    <string name="retrieve">Retrieve</string>
-    <string name="angle">angle</string>
-    <string name="ratio">ratio</string>
+   <string name="angle">angle</string>
+   <string name="ratio">ratio</string>
+   <string name="confirm">Confirm</string>
+   <string name="place">Place VO</string>
+   <string name="clear">Clear</string>
+   <string name="retrieve">Retrieve</string>
+   <string name="dispData">%1$s, %2$s</string>
 
     <!-- TODO: Remove or change this placeholder text -->
 </resources>

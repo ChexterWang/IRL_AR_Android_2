@@ -33,11 +33,11 @@ import android.media.Image;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Build;
-import android.os.Build.VERSION_CODES;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
-import androidx.annotation.RequiresApi;
+
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import android.util.Base64;
 import android.util.Log;
@@ -52,6 +52,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.ar.core.Trackable;
+import com.google.ar.core.DepthPoint;
 import com.google.ar.core.Frame;
 import com.google.ar.core.Anchor;
 import com.google.ar.core.Camera;
@@ -83,6 +84,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Collection;
 import java.lang.ref.WeakReference;
@@ -170,7 +172,7 @@ public class PromarMainActivity extends AppCompatActivity implements
     private boolean send_vo = false;
     private boolean viewer_vo = false;
     private boolean get_viewer_position = false;
-    private float view_x, view_y, view_z;
+    private float view_x, view_y, view_z, andyRotation;
     private boolean need_relocalize = false;
     private boolean planeVisible = false;
     private final float andyScale = 0.3f;
@@ -216,28 +218,17 @@ public class PromarMainActivity extends AppCompatActivity implements
 
         arFragment.setActivity(this);
         arFragment.setOnFrameListener((frameTime, frame) -> {
-            float curTime=frameTime.getStartSeconds();
-            Bitmap bitmap=null;//Bitmap.createBitmap(previewWidth, previewHeight, Bitmap.Config.ARGB_8888);
+            Bitmap bitmap=null;
             Image img=null;
-            //if(curTime-last_chk_time<2) return;
-            if(frame==null){
-                Log.d(TAG,"frame is null");
-                return;
-            }
+            if(frame==null) { Log.d(TAG,"frame is null"); return; }
             try {
-                img = frame.acquireCameraImage(); //catch the image from camera
+                img = frame.acquireCameraImage();
                 String msg = img.getFormat()+":"+ img.getWidth() +","+ img.getHeight();
-                // Log.d("img format", msg);
-                //setImage(img);
-                luminanceCopy = MyUtils.imageToByte(img); //convert image to byte[]
+                luminanceCopy = MyUtils.imageToByte(img);
                 bitmap=MyUtils.imageToBitmap(img);
                 img.close();
-                //if(bitmap!=null) setImage(bitmap);
-                //else return;
             }
-            catch(Exception e){
-                return;
-            }
+            catch(Exception e){ return; }
             if(objectDetector==null) {
                 initTF(bitmap);
                 initDistParameters();
@@ -245,24 +236,17 @@ public class PromarMainActivity extends AppCompatActivity implements
             if(!planeVisible) planeVisible = checkPlaneVisibility(frame);
             processImage(bitmap);
         });
-
-        arFragment.setOnTapArPlaneListener(
-            (HitResult hitResult, Plane plane, MotionEvent motionEvent) -> { return; }
-        );
-
+        arFragment.setOnTapArPlaneListener((HitResult hitResult, Plane plane, MotionEvent motionEvent) -> {});
         loadModel();
         setPlaceBtn();
         setRetrieveBtn();
-
     }
 
     private boolean checkPlaneVisibility(Frame frame) {
         Collection plane = frame.getUpdatedTrackables(Plane.class);
-        if(!plane.isEmpty()){
-            toastShow(PromarMainActivity.this, "plane found");
-            return true;
-        }
-        return false;
+        if(plane.isEmpty()) return false;
+        toastShow(PromarMainActivity.this, "plane found");
+        return true;
     }
 
     private void loadModel() {
@@ -281,71 +265,65 @@ public class PromarMainActivity extends AppCompatActivity implements
                 toast.setGravity(Gravity.CENTER, 0, 0);
                 toast.show();
                 return null;
-            }
-        );
+        });
     }
 
     private void setPlaceBtn() {
         Button recBtn = findViewById(R.id.record);
         recBtn.setOnClickListener(view -> {
-                Button btn=(Button)view;
-                String tag=(String)btn.getTag();
-                if(tag.equals("Place VO")) {
-                    placeAndy((float)previewWidth/2, (float)previewHeight/2);
-                    runOnUiThread(()-> {
-                        btn.setText("Confirm");
-                        btn.setTag("Confirm");
-                    });
-                } else {
-                    rs=null;//delete previous data
-                    onRecord = true;
-                    runOnUiThread(()-> {
-                        btn.setTag("Place VO");
-                        btn.setText("Place VO");
-                        send_vo = true;
-                        toastShow(PromarMainActivity.this, "set host");
-                    });
-                }
+            Button btn=(Button)view;
+            String tag=(String)btn.getTag();
+            if(tag.equals("Place VO")) {
+                placeAndy((float)previewWidth/2, (float)previewHeight/2);
+                runOnUiThread(()-> {
+                    btn.setText(getString(R.string.confirm));
+                    btn.setTag("Confirm");
+                });
+            } else {
+                rs=null;//delete previous data
+                onRecord = true;
+                runOnUiThread(()-> {
+                    btn.setText(getString(R.string.place));
+                    btn.setTag("Place VO");
+                    send_vo = true;
+                    toastShow(PromarMainActivity.this, "set host");
+                });
             }
-        );
+        });
         recBtn.setTag("Place VO");
     }
 
     private void setRetrieveBtn() {
         Button rteBtn = findViewById(R.id.retrieve);
         viewer_vo = true;
-        rteBtn.setOnClickListener(view -> {
-                AsyncTask.execute(() -> {
-                    Button btn=(Button)view;
-                    String tag=(String)btn.getTag();
-                    if(tag.equals("Retrieve")) {
-                        get_viewer_position = false;
-                        onRetrieve = true;
-                        runOnUiThread(()-> {
-                            viewer_vo = true;
-                            toastShow(PromarMainActivity.this, "viewer send");
-                            btn.setText("Clear");
-                            btn.setTag("Clear");
-                            //btn.setEnabled(false);
-                        });
-                    } else {
-                        onRetrieve=false;
-                        runOnUiThread(()-> {
-                            btn.setTag("Retrieve");
-                            btn.setText("Retrieve");
-                            if(andy != null) {
-                                andy.setParent(null);
-                            }
-                        });
-                    }
-                });
-            }
+        rteBtn.setOnClickListener(view ->
+            AsyncTask.execute(() -> {
+                Button btn=(Button)view;
+                String tag=(String)btn.getTag();
+                if(tag.equals("Retrieve")) {
+                    get_viewer_position = false;
+                    onRetrieve = true;
+                    runOnUiThread(()-> {
+                        viewer_vo = true;
+                        toastShow(PromarMainActivity.this, "viewer send");
+                        btn.setText(getString(R.string.clear));
+                        btn.setTag("Clear");
+                        //btn.setEnabled(false);
+                    });
+                } else {
+                    onRetrieve=false;
+                    runOnUiThread(()-> {
+                        btn.setText(getString(R.string.retrieve));
+                        btn.setTag("Retrieve");
+                        if(andy != null) andy.setParent(null);
+                    });
+                }
+            })
         );
         rteBtn.setTag("Retrieve");
         rteBtn.setEnabled(true);
     }
 
-    //FOV (rectilinear) =  2 * arctan (frame size/(focal length * 2))
     void setFOV() {
         //suppose there is only one camera
         int camNum = 0;
@@ -400,18 +378,11 @@ public class PromarMainActivity extends AppCompatActivity implements
         cropToFrameTransform = new Matrix();
         frameToCropTransform.invert(cropToFrameTransform);
         trackingOverlay = findViewById(R.id.tracking_overlay);
-        trackingOverlay.addCallback(
-                new OverlayView.DrawCallback() {
-                    @Override
-                    public void drawCallback(final Canvas canvas) {
-                        tracker.draw(canvas);
-                    }
-                });
+        trackingOverlay.addCallback((canvas) -> tracker.draw(canvas));
     }
 
     public void conn()
     {
-        ///////////////////////////Web Socket ROS_Bridge
         URI uri;
         try {
             uri = new URI("ws://192.168.50.57:9090/");
@@ -434,8 +405,6 @@ public class PromarMainActivity extends AppCompatActivity implements
                     String[] entries = message.split(":");
                     String data = entries[3].substring(0, entries[3].length() - 6);
                     String topic = entries[3].substring(2, 4);
-                    System.out.println("topic" + topic);
-                    System.out.println("msg" + message);
                     data = data.substring(data.indexOf('"')+1, data.length() - 2);
 
                     List<String> poselist = Arrays.asList(data.split(","));
@@ -512,78 +481,66 @@ public class PromarMainActivity extends AppCompatActivity implements
 
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.KITKAT)
-
     boolean has_subscribed = false;
     void web_sock_send(final String enc_img)
     {
-        new Thread(new Runnable() {
-            @RequiresApi(api = Build.VERSION_CODES.KITKAT)
-            @Override
-            public void run() {
-                // String encoded_img = enc_img.replace("\n", "").replace("\r", "");
-                String encoded_img = enc_img.replaceAll("(\\r|\\n|\\r\\n)+", "");
-                JSONObject obj = new JSONObject();
-                JSONObject obj1 = new JSONObject();
-                String data_header;
-                // add "_" at end to properly parse data (in IRL_websocket.py)
-                if(device_no < 0) {
-                    data_header = device_no.toString() + '_' + frame_no.toString() + "_getId_" + encoded_img + "_" + KalibInString + "_";
-                    device_no = 0;
-                } else if(send_vo) {
-                    data_header = device_no.toString() + '_' + frame_no.toString() + "_host_" + encoded_img + "_";
-                    send_vo = false;
-                } else if(viewer_vo && device_no > 0) {
-                    data_header = device_no.toString() + '_' + frame_no.toString() + "_viewer_" + encoded_img + "_";
-                    viewer_vo = false;
-                } else data_header = device_no.toString() + '_' + frame_no.toString() + "_F_" + encoded_img + "_";
+        new Thread(() -> {
+            String encoded_img = enc_img.replaceAll("(\\r|\\n|\\r\\n)+", "");
+            JSONObject obj = new JSONObject();
+            JSONObject obj1 = new JSONObject();
+            String data_header;
+            // add "_" at end to properly parse data (in IRL_websocket.py)
+            if(device_no < 0) {
+                data_header = device_no.toString() + '_' + frame_no.toString() + "_getId_" + encoded_img + "_" + KalibInString + "_";
+                device_no = 0;
+            } else if(send_vo) {
+                data_header = device_no.toString() + '_' + frame_no.toString() + "_host_" + encoded_img + "_";
+                send_vo = false;
+            } else if(viewer_vo && device_no > 0) {
+                data_header = device_no.toString() + '_' + frame_no.toString() + "_viewer_" + encoded_img + "_";
+                viewer_vo = false;
+            } else data_header = device_no.toString() + '_' + frame_no.toString() + "_F_" + encoded_img + "_";
 
-                try {
-                    obj1.put("data", data_header);
-                    obj.put("op","publish");
-                    obj.put("topic","/chatter");
-                    obj.put("msg", obj1);
-                } catch(JSONException e) {
-                    Log.i("error sending", "gg");
-                }
-                String data = "";
-                String data1 = "";
-                String op1 = "advertise";
-                String topic1 = "/chatter";
-                String type1 = "std_msgs/String";
-                data = "{\"op\": \"" + op1 + "\"";
-                data += ",\"topic\":\"" + topic1 + "\"";
-                data += ",\"type\":\"" + type1 + "\"}";
-                
-                if(myWebSocketClient.isOpen()){
-                    //For handshaking
-                    // myWebSocketClient.send(data);
-
-                    //For subscription bounding box
-                    if(!has_subscribed) {
-                        String op = "subscribe";
-                        String id = "001";
-                        String topic = "/IRL_SLAM";
-                        String type = "std_msgs/String";
-                        String subs = "";
-                        subs = "{\"op\": \"" + op + "\"";
-                        subs += ",\"id\":\"" + id + "\"";
-                        subs += ",\"topic\":\"" + topic + "\"";
-                        subs += ",\"type\":\"" + type + "\"}";
-                        has_subscribed = true;
-                        myWebSocketClient.send(subs);
-                    }
-                    myWebSocketClient.send(obj.toString());
-                }
-
-                frame_no++;
+            try {
+                obj1.put("data", data_header);
+                obj.put("op","publish");
+                obj.put("topic","/chatter");
+                obj.put("msg", obj1);
+            } catch(JSONException e) {
+                Log.i("error sending", "gg");
             }
+            String data = "";
+            String data1 = "";
+            String op1 = "advertise";
+            String topic1 = "/chatter";
+            String type1 = "std_msgs/String";
+            data = "{\"op\": \"" + op1 + "\"";
+            data += ",\"topic\":\"" + topic1 + "\"";
+            data += ",\"type\":\"" + type1 + "\"}";
+
+            if(myWebSocketClient.isOpen()){
+                //For handshaking
+                // myWebSocketClient.send(data);
+
+                //For subscription bounding box
+                if(!has_subscribed) {
+                    String op = "subscribe";
+                    String id = "001";
+                    String topic = "/IRL_SLAM";
+                    String type = "std_msgs/String";
+                    String subs = "{\"op\": \"" + op + "\"";
+                    subs += ",\"id\":\"" + id + "\"";
+                    subs += ",\"topic\":\"" + topic + "\"";
+                    subs += ",\"type\":\"" + type + "\"}";
+                    has_subscribed = true;
+                    myWebSocketClient.send(subs);
+                }
+                myWebSocketClient.send(obj.toString());
+            }
+            frame_no++;
         }).start();
-
-
     }
 
-    @RequiresApi(api = Build.VERSION_CODES.KITKAT)
     void send_image(Bitmap bitmap)
     {
         if(bitmap==null) return;
@@ -593,8 +550,6 @@ public class PromarMainActivity extends AppCompatActivity implements
         //cast to string
         final String encoded_img = Base64.encodeToString(byteArray, Base64.DEFAULT);
         //create json object
-
-
         System.out.println("Keyframe bitmap: row: "+bitmap.getHeight()+"column: "+bitmap.getWidth());
         System.out.println("Keyframe size!"+byteArray.length);
         web_sock_send(encoded_img);
@@ -606,13 +561,11 @@ public class PromarMainActivity extends AppCompatActivity implements
     public Bitmap changeSize(Bitmap bitmap){
         int width = bitmap.getWidth();
         int height = bitmap.getHeight();
-
         //放大為螢幕的1/2大小
         float screenWidth  = 640;		// 螢幕寬(畫素,如:480px)
         float screenHeight = 480;		// 螢幕高(畫素,如:800p)
         float scaleWidth = screenWidth/width;
         float scaleHeight = screenHeight/height;
-
         // 取得想要縮放的matrix引數
         Matrix matrix = new Matrix();
         matrix.postScale(scaleWidth, scaleHeight);
@@ -624,36 +577,28 @@ public class PromarMainActivity extends AppCompatActivity implements
     int ticks = 0;
     void processImage(Bitmap bitmap) {
         if(bitmap==null) return;
-
-        //byte[] originalLuminance = getLuminance();
+        if (luminanceCopy == null) return;
 
         ++timestamp;
         final long currTimestamp = timestamp;
 
-        if (luminanceCopy == null) {
-            //luminanceCopy = new byte[originalLuminance.length];
-            return;
-        }
         if(has_initialized && !need_relocalize){
             ticks +=1;
             if(ticks==5){
                 send_image(changeSize(bitmap));
                 ticks = 0;
             }
-
-        }else{
+        } else {
             send_image(changeSize(bitmap));
             need_relocalize = false;
         }
-
+        
         //stop the background thread when program is halted
         if (System.currentTimeMillis() - timeStamp > kInterval && handler != null) {
             timeStamp = System.currentTimeMillis();
         } else return;
-
         final Canvas canvas = new Canvas(croppedBitmap);
         canvas.drawBitmap(bitmap, frameToCropTransform, null);
-
         final Canvas c = new Canvas(copyBitmp);
         c.drawBitmap(bitmap, new Matrix(), null);
 
@@ -662,12 +607,6 @@ public class PromarMainActivity extends AppCompatActivity implements
         });
         bitmap.recycle();
     }
-
-    static int kTemplateFPNum = 100;
-    static int kDisThd = 400;
-
-
-    static float kConThd = 0.6f;
 
     private void retrieve(Bitmap img) {
         if(get_viewer_position) {
@@ -700,6 +639,17 @@ public class PromarMainActivity extends AppCompatActivity implements
 
     public void onPeekTouch() {}
 
+    void placeAndyWithAnchor(Anchor anchor) {
+        AnchorNode anchorNode = new AnchorNode(anchor);
+        anchorNode.setParent(arFragment.getArSceneView().getScene());
+        if(andy==null) andy = new TransformableNode(arFragment.getTransformationSystem());
+        andy.setLocalRotation(Quaternion.axisAngle(new Vector3(0f, 1f, 0f), andyRotation));
+        andy.getScaleController().setMinScale(andyScale);
+        andy.setLocalScale(new Vector3(andyScale, andyScale, andyScale));
+        andy.setParent(anchorNode);
+        andy.setRenderable(andyRenderable);
+        andy.select();
+    }
     void placeAndy(float x, float y){
         View contentView = findViewById(android.R.id.content);
         pointer.setLoc((int)x,(int)y);
@@ -713,48 +663,27 @@ public class PromarMainActivity extends AppCompatActivity implements
             for (HitResult hit : hits) {
                 Log.d(TAG, Float.toString(hit.getDistance()));
                 Trackable trackable = hit.getTrackable();
-                if (trackable instanceof Plane &&
-                        ((Plane) trackable).isPoseInPolygon(hit.getHitPose())) {
-                    AnchorNode anchorNode = new AnchorNode(hit.createAnchor());
-                    anchorNode.setParent(arFragment.getArSceneView().getScene());
-                    if(andy==null) andy = new TransformableNode(arFragment.getTransformationSystem());
-                    
-                    andy.setLocalRotation(Quaternion.axisAngle(new Vector3(0f, 1f, 0f), view_z));
-                    andy.getScaleController().setMinScale(andyScale);
-                    andy.setLocalScale(new Vector3(andyScale,andyScale,andyScale));
-                    andy.setParent(anchorNode);
-                    andy.setRenderable(andyRenderable);
-                    andy.select();
+                // if (trackable instanceof Plane &&
+                //         ((Plane) trackable).isPoseInPolygon(hit.getHitPose())) {
+                if (trackable instanceof DepthPoint ||
+                    trackable instanceof Plane
+                ){
+                    placeAndyWithAnchor(hit.createAnchor());
                 }
             }
         }
     }
-
-    void placeAndy(){
-        placeAndy(0.0f, 0.0f, 0.0f);
-    }
-
-    void placeAndyWithDist(float dist){
-        placeAndy(0.0f, 0.0f, -dist);
-    }
-
     void placeAndy(float x, float y, float z){
         Camera camera = arFragment.getArSceneView().getArFrame().getCamera();
         Pose mCameraRelativePose = Pose.makeTranslation(x, y, z);
         arSession = arFragment.getArSceneView().getSession();
-
         Pose cPose = camera.getPose().compose(mCameraRelativePose).extractTranslation();
         Anchor anchor=arSession.createAnchor(cPose);
-
-        AnchorNode anchorNode = new AnchorNode(anchor);
-        anchorNode.setParent(arFragment.getArSceneView().getScene());
-
-        if(andy==null) andy = new TransformableNode(arFragment.getTransformationSystem());
-
-        andy.setParent(anchorNode);
-        andy.setRenderable(andyRenderable);
-        andy.select();
+        placeAndyWithAnchor(anchor);
     }
+    void placeAndy(){ placeAndy(0.0f, 0.0f, 0.0f); }
+    void placeAndyWithDist(float dist){ placeAndy(0.0f, 0.0f, -dist); }
+
 
     /**
      * Returns false and displays an error message if Sceneform can not run, true if Sceneform can run
@@ -765,11 +694,6 @@ public class PromarMainActivity extends AppCompatActivity implements
      * <p>Finishes the activity if Sceneform can not run
      */
     public static boolean checkIsSupportedDeviceOrFinish(final Activity activity) {
-        if (Build.VERSION.SDK_INT < VERSION_CODES.N) {
-            Toast.makeText(activity, "Sceneform requires Android N or later", Toast.LENGTH_LONG).show();
-            activity.finish();
-            return false;
-        }
         String openGlVersionString =
                 ((ActivityManager) activity.getSystemService(Context.ACTIVITY_SERVICE))
                         .getDeviceConfigurationInfo()
@@ -792,37 +716,20 @@ public class PromarMainActivity extends AppCompatActivity implements
     void setImage(Image image){
         if(!opencvLoaded) return;
         Mat mat=  MyUtils.imageToMat(image);
-
         //ImageView imgview=findViewById(R.id.imgview);
         Bitmap bitmap=Bitmap.createBitmap(mat.cols(),  mat.rows(), Bitmap.Config.ARGB_8888);
-
         Utils.matToBitmap(mat,bitmap);
-
-
         Matrix matrix = new Matrix();
         matrix.postRotate(90);
-
         Bitmap rotatedBitmap = Bitmap.createBitmap(bitmap , 0, 0, bitmap.getWidth(), bitmap.getHeight(), matrix, true);
-
         //imgview.setImageBitmap(rotatedBitmap);
     }
-
-
 
     private final BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
         @Override
         public void onManagerConnected(int status) {
-            opencvLoaded=false;
-            switch (status) {
-                case LoaderCallbackInterface.SUCCESS:
-                {
-                    opencvLoaded=true;
-                } break;
-                default:
-                {
-                    super.onManagerConnected(status);
-                } break;
-            }
+            opencvLoaded = (status == LoaderCallbackInterface.SUCCESS);
+            super.onManagerConnected(status);
         }
     };
 
@@ -842,7 +749,6 @@ public class PromarMainActivity extends AppCompatActivity implements
         handler = new Handler(handlerThread.getLooper());
         arFragment.onResume();
     }
-
 
     public void addCallback(final OverlayView.DrawCallback callback) {
         final OverlayView overlay = findViewById(R.id.debug_overlay);
@@ -877,17 +783,17 @@ public class PromarMainActivity extends AppCompatActivity implements
                 return 180;
             case Surface.ROTATION_90:
                 return 90;
+            case Surface.ROTATION_0:
+                return 0;
             default:
                 return 0;
         }
     }
 
-
     public void requestRender() {
         final OverlayView overlay = findViewById(R.id.debug_overlay);
         if(overlay != null) overlay.postInvalidate();
     }
-
 
     //Codes below this line is for orientation monitor
     private RotationData refRD =null;
@@ -900,7 +806,7 @@ public class PromarMainActivity extends AppCompatActivity implements
 
     public void onSensorChanged(SensorEvent event) {
         if (firstValue) {
-            refRD =new RotationData(event.values);
+            refRD = new RotationData(event.values);
             firstValue=false;
         } else {
             cRD=new RotationData(event.values);
@@ -910,7 +816,7 @@ public class PromarMainActivity extends AppCompatActivity implements
 
     void displayData(RotationData temp){
         TextView textView=findViewById(R.id.cangle);
-        if(refRD != null) textView.setText(refRD +", "+temp.toString());
+        if(refRD != null) textView.setText(getString(R.string.dispData, refRD.toString(), temp.toString()));
     }
 
     void setAngle(){
@@ -952,8 +858,9 @@ public class PromarMainActivity extends AppCompatActivity implements
             z = azimuth;    //left,right perspective. -180~180
         }
 
+        @NonNull
         public String toString(){
-            return String.format("%.02f %.02f %.02f", x, y, z);
+            return String.format(Locale.US, "%.02f %.02f %.02f", x, y, z);
         }
     }
 }
