@@ -176,9 +176,10 @@ public class PromarMainActivity extends AppCompatActivity implements
     private boolean need_relocalize = false;
     private boolean planeVisible = false;
     private final float andyScale = 0.3f;
+    private static MyUtils util = new MyUtils(true);
 
     // private String KalibInString = "737.037,699.167,340.565,218.486";
-    private static final String KalibInString = MyUtils.deviceToKalib();
+    private static final String KalibInString = util.deviceToKalib();
 
     private final PointerDrawable pointer = new PointerDrawable();
 
@@ -224,8 +225,8 @@ public class PromarMainActivity extends AppCompatActivity implements
             try {
                 img = frame.acquireCameraImage();
                 String msg = img.getFormat()+":"+ img.getWidth() +","+ img.getHeight();
-                luminanceCopy = MyUtils.imageToByte(img);
-                bitmap=MyUtils.imageToBitmap(img);
+                luminanceCopy = util.imageToByte(img);
+                bitmap=util.imageToBitmap(img);
                 img.close();
             }
             catch(Exception e){ return; }
@@ -385,13 +386,13 @@ public class PromarMainActivity extends AppCompatActivity implements
     {
         URI uri;
         try {
-            uri = new URI("ws://192.168.50.57:9090/");
+            uri = new URI("ws://192.168.50.76:9090/");
         } catch (URISyntaxException e) {
             e.printStackTrace();
             return;
         }
 
-        myWebSocketClient = new WebSocketClient(uri)  {
+        myWebSocketClient = new WebSocketClient(uri) {
             @Override
             public void onOpen(ServerHandshake serverHandshake) {
                 Log.i("Websocket", "Opened");
@@ -536,6 +537,8 @@ public class PromarMainActivity extends AppCompatActivity implements
                     myWebSocketClient.send(subs);
                 }
                 myWebSocketClient.send(obj.toString());
+            } else {
+                // util.logi("no ws access");
             }
             frame_no++;
         }).start();
@@ -650,38 +653,51 @@ public class PromarMainActivity extends AppCompatActivity implements
         andy.setRenderable(andyRenderable);
         andy.select();
     }
+
     void placeAndy(float x, float y){
+        Frame frame = arFragment.getArSceneView().getArFrame();
+        if(frame == null) return;
         View contentView = findViewById(android.R.id.content);
         pointer.setLoc((int)x,(int)y);
         contentView.getOverlay().add(pointer);
         contentView.invalidate();
-        Frame frame = arFragment.getArSceneView().getArFrame();
         android.graphics.Point pt = new android.graphics.Point((int)x, (int)y);
         List<HitResult> hits;
-        if (frame != null) {
-            hits = frame.hitTest(pt.x, pt.y);
-            for (HitResult hit : hits) {
-                Log.d(TAG, Float.toString(hit.getDistance()));
-                Trackable trackable = hit.getTrackable();
-                // if (trackable instanceof Plane &&
-                //         ((Plane) trackable).isPoseInPolygon(hit.getHitPose())) {
-                if (trackable instanceof DepthPoint ||
-                    trackable instanceof Plane
-                ){
-                    placeAndyWithAnchor(hit.createAnchor());
-                }
+        hits = frame.hitTest(pt.x, pt.y);
+        for (HitResult hit : hits) {
+            Trackable tab = hit.getTrackable();
+            util.logi("className: " + tab.getClass().getName() +
+                    ", depthpoint: " + (tab instanceof DepthPoint) +
+                    ", plane: "+ (tab instanceof Plane) +
+                    ", distance: " + Float.toString(hit.getDistance()));
+        }
+        for (HitResult hit : hits) {
+            Trackable trackable = hit.getTrackable();
+            // if (trackable instanceof Plane &&
+            //         ((Plane) trackable).isPoseInPolygon(hit.getHitPose())) {
+            if (trackable instanceof DepthPoint ||
+                trackable instanceof Plane
+            ){
+                util.logi("distance: " + Float.toString(hit.getDistance()));
+                placeAndyWithAnchor(hit.createAnchor());
+                break;
             }
         }
     }
+
     void placeAndy(float x, float y, float z){
-        Camera camera = arFragment.getArSceneView().getArFrame().getCamera();
+        Frame f = arFragment.getArSceneView().getArFrame();
+        if(f == null) return;
+        Camera camera = f.getCamera();
         Pose mCameraRelativePose = Pose.makeTranslation(x, y, z);
         arSession = arFragment.getArSceneView().getSession();
         Pose cPose = camera.getPose().compose(mCameraRelativePose).extractTranslation();
         Anchor anchor=arSession.createAnchor(cPose);
         placeAndyWithAnchor(anchor);
     }
+
     void placeAndy(){ placeAndy(0.0f, 0.0f, 0.0f); }
+
     void placeAndyWithDist(float dist){ placeAndy(0.0f, 0.0f, -dist); }
 
 
@@ -715,9 +731,9 @@ public class PromarMainActivity extends AppCompatActivity implements
 
     void setImage(Image image){
         if(!opencvLoaded) return;
-        Mat mat=  MyUtils.imageToMat(image);
+        Mat mat = util.imageToMat(image);
         //ImageView imgview=findViewById(R.id.imgview);
-        Bitmap bitmap=Bitmap.createBitmap(mat.cols(),  mat.rows(), Bitmap.Config.ARGB_8888);
+        Bitmap bitmap = Bitmap.createBitmap(mat.cols(),  mat.rows(), Bitmap.Config.ARGB_8888);
         Utils.matToBitmap(mat,bitmap);
         Matrix matrix = new Matrix();
         matrix.postRotate(90);

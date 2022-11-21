@@ -29,9 +29,9 @@ import java.util.Collections;
 public class MyUtils {
 
     private static Map<String, String> deviceToKalibMap = new HashMap<String, String>();
-    private static final boolean enableLog = false;
+    private static boolean log;
 
-    static {
+    public MyUtils(boolean enableLog){
         Map<String, String> tmpMap = new HashMap<String, String>();
         // {"MODEL", "fx,fy,cx,cy"}
         // cx, cy means principal point which should be ideally the center of the image.
@@ -40,6 +40,7 @@ public class MyUtils {
         tmpMap.put("Pixel 6", "472.373+470.638+320.901+237.168");
         tmpMap.put("J9210", "515.346+687.030+325.055+239.317");
         deviceToKalibMap = Collections.unmodifiableMap(tmpMap);
+        log = enableLog;
     }
 
     public static String deviceToKalib() {
@@ -50,8 +51,8 @@ public class MyUtils {
         return deviceToKalibMap.getOrDefault(device, "737.037,699.167,340.565,218.486");
     }
 
-    private static void logi(String str){
-        if(enableLog){
+    public static void logi(String str){
+        if(log){
             Log.i("tag", str);
         }
     }
