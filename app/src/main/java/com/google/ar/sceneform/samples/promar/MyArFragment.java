@@ -71,6 +71,7 @@ public class MyArFragment extends ArFragment {
         if(!configured){
             setAutoFocus();
             setResolution();
+            setSessionConfiguration();
             configured=true;
         }
         super.onUpdate(frameTime);
@@ -78,11 +79,12 @@ public class MyArFragment extends ArFragment {
         if (listener != null) listener.onFrame(frameTime, arFrame);
     }
 
-    protected Config getSessionConfiguration(Session session) {
-        Config newConfig = session.getConfig();
+    public void setSessionConfiguration() {
+        Session arSession = getArSceneView().getSession();
+        Config newConfig = arSession.getConfig();
         newConfig.setPlaneFindingMode(Config.PlaneFindingMode.HORIZONTAL);
-        if(session.isDepthModeSupported(Config.DepthMode.AUTOMATIC))
+        if(arSession.isDepthModeSupported(Config.DepthMode.AUTOMATIC))
             newConfig.setDepthMode(Config.DepthMode.AUTOMATIC);
-        return newConfig;
+        arSession.configure(newConfig);
     }
 }

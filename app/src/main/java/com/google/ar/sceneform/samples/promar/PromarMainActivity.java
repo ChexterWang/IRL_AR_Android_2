@@ -60,6 +60,7 @@ import com.google.ar.core.HitResult;
 import com.google.ar.core.Plane;
 import com.google.ar.core.Pose;
 import com.google.ar.core.Session;
+import com.google.ar.core.exceptions.NotYetAvailableException;
 import com.google.ar.sceneform.AnchorNode;
 import com.google.ar.sceneform.math.Vector3;
 import com.google.ar.sceneform.math.Quaternion;
@@ -82,6 +83,8 @@ import org.opencv.core.Mat;
 import java.io.ByteArrayOutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -102,7 +105,7 @@ import com.example.promar.imageprocessinglib.model.Recognition;
 public class PromarMainActivity extends AppCompatActivity implements
         SensorEventListener,
         SavingFeatureDialog.OnFragmentInteractionListener {
-    private  static final String TAG = "MAIN_DEBUG";
+    private static final String TAG = "MAIN_DEBUG";
     private static final int OWNER_STATE=1, VIEWER_STATE=2;
     private static final double MIN_OPENGL_VERSION = 3.1;
 
@@ -172,7 +175,7 @@ public class PromarMainActivity extends AppCompatActivity implements
     private boolean send_vo = false;
     private boolean viewer_vo = false;
     private boolean get_viewer_position = false;
-    private float view_x, view_y, view_z, andyRotation;
+    private float pixel_x, pixel_y, view_x, view_y, view_z, andyRotation;
     private boolean need_relocalize = false;
     private boolean planeVisible = false;
     private final float andyScale = 0.3f;
@@ -238,9 +241,17 @@ public class PromarMainActivity extends AppCompatActivity implements
             processImage(bitmap);
         });
         arFragment.setOnTapArPlaneListener((HitResult hitResult, Plane plane, MotionEvent motionEvent) -> {});
+        showPointer();
         loadModel();
         setPlaceBtn();
         setRetrieveBtn();
+    }
+
+    private void showPointer() {
+        View contentView = findViewById(android.R.id.content);
+        pointer.setLoc(960,540);
+        contentView.getOverlay().add(pointer);
+        contentView.invalidate();
     }
 
     private boolean checkPlaneVisibility(Frame frame) {
@@ -262,10 +273,10 @@ public class PromarMainActivity extends AppCompatActivity implements
             if(activity != null) activity.andyRenderable = model;
         })
         .exceptionally(throwable -> {
-                Toast toast = Toast.makeText(this, "Unable to load andy renderable", Toast.LENGTH_LONG);
-                toast.setGravity(Gravity.CENTER, 0, 0);
-                toast.show();
-                return null;
+            Toast toast = Toast.makeText(this, "Unable to load andy renderable", Toast.LENGTH_LONG);
+            toast.setGravity(Gravity.CENTER, 0, 0);
+            toast.show();
+            return null;
         });
     }
 
@@ -412,12 +423,15 @@ public class PromarMainActivity extends AppCompatActivity implements
                     if(poselist.get(0).equals("host_set"))
                         runOnUiThread(()-> toastShow(getApplicationContext(), "server set done"));
                     else if(poselist.get(0).equals("viewer_done")){
-                        int rcv_id = Integer.parseInt(poselist.get(4));
+                        // viewer_done,{pixel[0]:.5f},{pixel[1]:.5f},{pos[0]},{pos[1]},{self.VO.sm_angle:.0f},{device_id}
+                        int rcv_id = Integer.parseInt(poselist.get(6));
                         if(rcv_id == device_no){
-                            view_x = Float.parseFloat(poselist.get(1));
-                            view_y = Float.parseFloat(poselist.get(2));
-                            view_z = Float.parseFloat(poselist.get(3));
-                            runOnUiThread(() -> toastShow(getApplicationContext(), "rcv angle: "+view_z));
+                            pixel_x = Float.parseFloat(poselist.get(1));
+                            pixel_y = Float.parseFloat(poselist.get(2));
+                            view_x = Float.parseFloat(poselist.get(3));
+                            view_y = Float.parseFloat(poselist.get(4));
+                            andyRotation = Float.parseFloat(poselist.get(5));
+                            runOnUiThread(() -> toastShow(getApplicationContext(), "rcv angle: "+andyRotation));
                             get_viewer_position = true;
                         }
 /*
@@ -611,19 +625,26 @@ public class PromarMainActivity extends AppCompatActivity implements
         bitmap.recycle();
     }
 
+    private float scaleX(float x, float fromX, float toX){ return x*toX/fromX; }
+
     private void retrieve(Bitmap img) {
         if(get_viewer_position) {
             float screenWidth  = 640;		// 螢幕寬(畫素,如:480px)
             float screenHeight = 480;		// 螢幕高(畫素,如:800p)
             float scaleWidth = screenWidth/previewWidth;
             float scaleHeight = screenHeight/previewHeight;
-            float ptx = view_x / scaleWidth;
-            float pty = view_y / scaleHeight;
+            float ptx = pixel_x / scaleWidth;
+            float pty = pixel_y / scaleHeight;
             runOnUiThread(() -> {
-                placeAndy(ptx, pty);
-                // placeAndy(view_y, view_x , -view_z);
+                if(placeAndy(ptx, pty)){
+                    get_viewer_position = false;
+                    onRetrieve=false;
+                    return;
+                }
+                viewer_vo = true;
                 get_viewer_position = false;
-                onRetrieve=false;
+                onRetrieve = true;
+                // placeAndy(view_y, view_x , -view_z);
             });
         }
     }
@@ -642,7 +663,16 @@ public class PromarMainActivity extends AppCompatActivity implements
 
     public void onPeekTouch() {}
 
-    void placeAndyWithAnchor(Anchor anchor) {
+    private float getDepth(Image depthImage, int x, int y) {
+        // The depth image has a single plane, which stores depth for each
+        // pixel as 16-bit unsigned integers.
+        Image.Plane plane = depthImage.getPlanes()[0];
+        int byteIndex = x * plane.getPixelStride() + y * plane.getRowStride();
+        ByteBuffer buffer = plane.getBuffer().order(ByteOrder.nativeOrder());
+        return (float) buffer.getShort(byteIndex) / 1000;
+    }
+
+    private boolean placeAndyWithAnchor(Anchor anchor) {
         AnchorNode anchorNode = new AnchorNode(anchor);
         anchorNode.setParent(arFragment.getArSceneView().getScene());
         if(andy==null) andy = new TransformableNode(arFragment.getTransformationSystem());
@@ -652,53 +682,76 @@ public class PromarMainActivity extends AppCompatActivity implements
         andy.setParent(anchorNode);
         andy.setRenderable(andyRenderable);
         andy.select();
+        return true;
     }
 
-    void placeAndy(float x, float y){
+    private boolean placeAndy(float x, float y){
+
         Frame frame = arFragment.getArSceneView().getArFrame();
-        if(frame == null) return;
+        if(frame == null) return false;
+
         View contentView = findViewById(android.R.id.content);
         pointer.setLoc((int)x,(int)y);
         contentView.getOverlay().add(pointer);
         contentView.invalidate();
+
+        Image depthImage = null;
+        float imageDepth = 0;
+        float depthLowerBound = 0;
+        float depthUpperBound = 0;
+        try {
+            depthImage = frame.acquireDepthImage16Bits();
+            float xScaled = scaleX(x, previewWidth, depthImage.getWidth());
+            float yScaled = scaleX(y, previewHeight, depthImage.getHeight());
+            imageDepth = getDepth(depthImage, (int)xScaled, (int)yScaled);
+            float acceptedRange = (float) 0.15;
+            depthLowerBound = imageDepth * (1-acceptedRange);
+            depthUpperBound = imageDepth * (1+acceptedRange);
+            util.logi("depth image distance: " + imageDepth);
+        } catch (NotYetAvailableException e) {
+            util.logi("depthImage not available due to no tracking");
+        } finally {
+            if (depthImage != null) depthImage.close();
+        }
+
         android.graphics.Point pt = new android.graphics.Point((int)x, (int)y);
         List<HitResult> hits;
         hits = frame.hitTest(pt.x, pt.y);
         for (HitResult hit : hits) {
             Trackable tab = hit.getTrackable();
+            float hitDepth = hit.getDistance();
+            boolean depthInRange = ((hitDepth > depthLowerBound) && (hitDepth < depthUpperBound));
+            if(depthImage == null) depthInRange = true;
             util.logi("className: " + tab.getClass().getName() +
-                    ", depthpoint: " + (tab instanceof DepthPoint) +
-                    ", plane: "+ (tab instanceof Plane) +
-                    ", distance: " + Float.toString(hit.getDistance()));
-        }
-        for (HitResult hit : hits) {
-            Trackable trackable = hit.getTrackable();
-            // if (trackable instanceof Plane &&
-            //         ((Plane) trackable).isPoseInPolygon(hit.getHitPose())) {
-            if (trackable instanceof DepthPoint ||
-                trackable instanceof Plane
-            ){
-                util.logi("distance: " + Float.toString(hit.getDistance()));
-                placeAndyWithAnchor(hit.createAnchor());
-                break;
+                    ", hit distance: " + hitDepth +
+                    ", depthImage depth: " + imageDepth +
+                    ", in the range:" + depthInRange);
+            if(get_viewer_position) {
+                //  if(depthInRange) return placeAndy(view_y, view_x, -hitDepth);
+               if(depthInRange) return placeAndyWithAnchor(hit.createAnchor());
+            } else {
+                if(tab instanceof Plane && ((Plane) tab).isPoseInPolygon(hit.getHitPose())) {
+                    if(depthInRange) return placeAndyWithAnchor(hit.createAnchor());
+                } else if (tab instanceof DepthPoint) return placeAndyWithAnchor(hit.createAnchor());
             }
         }
+        return false;
     }
 
-    void placeAndy(float x, float y, float z){
+    private boolean placeAndy(float x, float y, float z){
         Frame f = arFragment.getArSceneView().getArFrame();
-        if(f == null) return;
+        if(f == null) return false;
         Camera camera = f.getCamera();
         Pose mCameraRelativePose = Pose.makeTranslation(x, y, z);
         arSession = arFragment.getArSceneView().getSession();
         Pose cPose = camera.getPose().compose(mCameraRelativePose).extractTranslation();
         Anchor anchor=arSession.createAnchor(cPose);
-        placeAndyWithAnchor(anchor);
+        return placeAndyWithAnchor(anchor);
     }
 
-    void placeAndy(){ placeAndy(0.0f, 0.0f, 0.0f); }
+    private void placeAndy(){ placeAndy(0.0f, 0.0f, 0.0f); }
 
-    void placeAndyWithDist(float dist){ placeAndy(0.0f, 0.0f, -dist); }
+    private void placeAndyWithDist(float dist){ placeAndy(0.0f, 0.0f, -dist); }
 
 
     /**
